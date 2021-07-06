@@ -248,7 +248,9 @@ wire rx_output_strobe;   // Used to produce the actual output.
 wire tx_parity_bit;
 wire rx_shifting_done;
 wire tx_shifting_done;
-wire [11:0] shift_key_plus_code;
+reg [11:0] shift_key_plus_code1;
+reg [11:0] shift_key_plus_code2;
+reg [11:0] shift_key_plus_code3;
 
 reg [`TOTAL_BITS-1:0] q;
 reg [3:0] m1_state;
@@ -764,17 +766,14 @@ assign rx_output_strobe = (rx_shifting_done
 // extended key 0x2xx
 // numlock key  0x4xx (xor with shift)
 // keycode      0x?nn
-assign shift_key_plus_code = {1'b0,(num_lock ^ rx_shift_key_on) , hold_extended, rx_shift_key_on, q[8:1]};
-always @(shift_key_plus_code, esc_reset)
+//assign shift_key_plus_code = {1'b0,(num_lock ^ rx_shift_key_on) , hold_extended, rx_shift_key_on, q[8:1]};
+always @(num_lock, rx_shift_key_on, hold_extended, q[8:1])
 begin
-//  if (esc_reset) esc_active <= 0;
-  
-  casez (shift_key_plus_code & 12'h3ff) // ignore num-lock
-    12'h?66 : ascii <= 8'h08;  // Backspace ("backspace" key)
-    12'h?0d : ascii <= 8'h09;  // Horizontal Tab
-    12'h?5a : ascii <= 8'h0d;  // Carriage return ("enter" key)
-    12'h?76 : ascii <= 8'h1b;  // Escape ("esc" key)
-    12'h?29 : ascii <= 8'h20;  // Space
+  shift_key_plus_code1 <= {1'b0, (1'b0)                      , hold_extended, rx_shift_key_on, q[8:1]}; // ignore num-lock
+  shift_key_plus_code2 <= {1'b0, (num_lock ^ rx_shift_key_on), hold_extended,          (1'b0), q[8:1]}; // use made-up num-lock status
+  shift_key_plus_code3 <= {1'b0, (1'b0)                      , hold_extended,          (1'b0), q[8:1]}; // ignore num-lock and shift, accept extended keys
+
+  case (shift_key_plus_code1) // ignore num-lock
     12'h116 : ascii <= 8'h21;  // !
     12'h126 : ascii <= 8'h23;  // #
     12'h125 : ascii <= 8'h24;  // $
@@ -841,8 +840,8 @@ begin
     12'h023 : ascii <= 8'h64;  // d
     12'h024 : ascii <= 8'h65;  // e
     12'h02b : ascii <= 8'h66;  // f
-    12'h034 : ascii <= 8'h67;  // g
-    12'h033 : ascii <= 8'h68;  // h
+    12'h134 : ascii <= 8'h67;  // g
+    12'h133 : ascii <= 8'h68;  // h
     12'h043 : ascii <= 8'h69;  // i
     12'h03b : ascii <= 8'h6a;  // j
     12'h042 : ascii <= 8'h6b;  // k
@@ -862,85 +861,89 @@ begin
     12'h035 : ascii <= 8'h79;  // y
     12'h01a : ascii <= 8'h7a;  // z
     12'h154 : ascii <= 8'h7b;  // {
-`ifndef ALT_LAYOUT
-    // uk keyboard layout    
-    12'h00e : ascii <= 8'h60;  // `
-    12'h10e : ascii <= 8'h7c;  // |
-    12'h061 : ascii <= 8'h5c;  // \
-    12'h161 : ascii <= 8'h7c;  // |
-    12'h152 : ascii <= 8'h40;  // @
-    12'h11e : ascii <= 8'h22;  // "
-    12'h05d : ascii <= 8'h23;  // #
-    12'h15d : ascii <= 8'h7e;  // ~
-`else    
-    // other keyboard layout (US?)
-    12'h152 : ascii <= 8'h22;  // "
-    12'h11e : ascii <= 8'h40;  // @
-    12'h05d : ascii <= 8'h5c;  // \
-    12'h15d : ascii <= 8'h7c;  // |
-    12'h10e : ascii <= 8'h7e;  // ~
-`endif    
-    
     12'h15b : ascii <= 8'h7d;  // }
+`ifdef nothing    
+`ifndef ALT_LAYOUT
+    // UK keyboard layout    
+    12'h00e : begin  esc_active <= 0; ascii <= 8'h60; end // `
+    12'h10e : begin  esc_active <= 0; ascii <= 8'h7c; end // |
+    12'h061 : begin  esc_active <= 0; ascii <= 8'h5c; end // \
+    12'h161 : begin  esc_active <= 0; ascii <= 8'h7c; end // |
+    12'h152 : begin  esc_active <= 0; ascii <= 8'h40; end // @
+    12'h11e : begin  esc_active <= 0; ascii <= 8'h22; end // "
+    12'h05d : begin  esc_active <= 0; ascii <= 8'h23; end // #
+    12'h15d : begin  esc_active <= 0; ascii <= 8'h7e; end // ~
+`else    
+    // other keyboard layout (US)
+    12'h152 : begin esc_active <=0; ascii <= 8'h22; end // "
+    12'h11e : begin esc_active <=0; ascii <= 8'h40; end // @
+    12'h05d : begin esc_active <=0; ascii <= 8'h5c; end // \
+    12'h15d : begin esc_active <=0; ascii <= 8'h7c; end // |
+    12'h10e : begin esc_active <=0; ascii <= 8'h7e; end // ~
+`endif    
+`endif
+    
     //default : ascii <= 8'h2e;  // '.' used for unlisted characters.
-    default : ascii <= 8'h3f;  // ?
+ //   default : ascii <= 8'h3f;  // ?
   endcase
-  
-  // numeric keypad decode - uses num-lock status
-// shifted  key 0x1xx
-// extended key 0x2xx
-// numlock key  0x4xx (xor with shift)
-// keycode      0x?nn
-  
-  case (shift_key_plus_code & 12'h6ff) // ignore usual shift
+`ifdef nothing  
+  // numeric keypad decode 
+  case (shift_key_plus_code2 ) // use made-up num-lock status
     // numeric keypad digits (shift ^ numlock)
-    12'h471 : ascii <= 8'h2e;  // .      (DEL on numeric keypad)
-    12'h470 : ascii <= 8'h30;  // 0
-    12'h469 : ascii <= 8'h31;  // 1
-    12'h472 : ascii <= 8'h32;  // 2
-    12'h47a : ascii <= 8'h33;  // 3
-    12'h46b : ascii <= 8'h34;  // 4
-    12'h473 : ascii <= 8'h35;  // 5
-    12'h474 : ascii <= 8'h36;  // 6
-    12'h46c : ascii <= 8'h37;  // 7
-    12'h475 : ascii <= 8'h38;  // 8
-    12'h47d : ascii <= 8'h39;  // 9
+    12'h471 : begin esc_active <= 0; ascii <= 8'h2e; end // .      (DEL on numeric keypad)
+    12'h470 : begin esc_active <= 0; ascii <= 8'h30; end // 0
+    12'h469 : begin esc_active <= 0; ascii <= 8'h31; end // 1
+    12'h472 : begin esc_active <= 0; ascii <= 8'h32; end // 2
+    12'h47a : begin esc_active <= 0; ascii <= 8'h33; end // 3
+    12'h46b : begin esc_active <= 0; ascii <= 8'h34; end // 4
+    12'h473 : begin esc_active <= 0; ascii <= 8'h35; end // 5
+    12'h474 : begin esc_active <= 0; ascii <= 8'h36; end // 6
+    12'h46c : begin esc_active <= 0; ascii <= 8'h37; end // 7
+    12'h475 : begin esc_active <= 0; ascii <= 8'h38; end // 8
+    12'h47d : begin esc_active <= 0; ascii <= 8'h39; end // 9
         
-    12'h071 : ascii <= 8'h7f;  // delete (Del on numeric keypad)
-    12'h070 : ascii <= 8'h49;  // delete (Ins on numeric keypad)
-    12'h072 : ascii <= 8'h44;  // 2 D
-    12'h06b : ascii <= 8'h4c;  // 4 L
-    12'h074 : ascii <= 8'h52;  // 6 R
-    12'h075 : ascii <= 8'h55;  // 8 U
-    12'h06c : ascii <= 8'h48;  // 7 H (home)
-    12'h069 : ascii <= 8'h45;  // 1 E (end)
-    12'h07d : ascii <= 8'h50;  // 9 P (p Up)
-    12'h07a : ascii <= 8'h4e;  // 3 N (p Dn)
-    12'h073 :               ;  // 5 (nothing)
+    12'h071 : begin ascii <= 8'h7f; end // delete (Del on numeric keypad)
+    12'h070 : begin ascii <= 8'h49; end //   I (Ins on numeric keypad)
+    12'h069 : begin ascii <= 8'h45; end // 1 E (end)
+    12'h072 : begin ascii <= 8'h44; end // 2 D (down)
+    12'h07a : begin ascii <= 8'h4e; end // 3 N (p Dn)
+    12'h06b : begin ascii <= 8'h4c; end // 4 L (left)
+    12'h073 :       ;                     // 5 (nothing)
+    12'h074 : begin ascii <= 8'h52; end // 6 R (right)
+    12'h06c : begin ascii <= 8'h48; end // 7 H (home)
+    12'h075 : begin ascii <= 8'h55; end // 8 U (up)
+    12'h07d : begin ascii <= 8'h50; end // 9 P (p Up)
   endcase
+`endif
+  case (shift_key_plus_code3) // ignore num-lock and shift, accept extended keys
+  
+    // keys without shifts
+    12'h066 : begin esc_active <= 0; ascii <= 8'h08; end // Backspace ("backspace" key)
+    12'h00d : begin esc_active <= 0; ascii <= 8'h09; end // Horizontal Tab
+    12'h05a : begin esc_active <= 0; ascii <= 8'h0d; end // Carriage return ("enter" key)
+    12'h076 : begin esc_active <= 0; ascii <= 8'h1b; end // Escape ("esc" key)
+    12'h029 : begin esc_active <= 0; ascii <= 8'h20; end // Space
 
-  case (shift_key_plus_code & 12'h2ff) // ignore num-lock and shift, accept extended keys
-    // cursor keys
+    // cursor keys - VT52 esc sequence
     12'h272 : begin esc_active <= 1; ascii <= 8'h1b; esc_ascii <= 8'h42; end // down
     12'h26b : begin esc_active <= 1; ascii <= 8'h1b; esc_ascii <= 8'h44; end // left
     12'h274 : begin esc_active <= 1; ascii <= 8'h1b; esc_ascii <= 8'h43; end // right
     12'h275 : begin esc_active <= 1; ascii <= 8'h1b; esc_ascii <= 8'h41; end // up
     
-      // numeric keypad operators
-    12'h24a : ascii <= 8'h2f;  // /
-    12'h07c : ascii <= 8'h2a;  // *
-    12'h07b : ascii <= 8'h2d;  // -
-    12'h079 : ascii <= 8'h2b;  // +
-    12'h25a : begin esc_active <= 0; ascii <= 8'h0d; esc_ascii <= 8'h0; end // ("enter" key)
+    // numeric keypad operators
+    12'h24a : begin esc_active <=0; ascii <= 8'h2f; end // /
+    12'h07c : begin esc_active <=0; ascii <= 8'h2a; end // *
+    12'h07b : begin esc_active <=0; ascii <= 8'h2d; end // -
+    12'h079 : begin esc_active <=0; ascii <= 8'h2b; end // +
+    12'h25a : begin esc_active <=0; ascii <= 8'h0d; end // ("enter" key)
 
     // block keys (ins,del, home, end, pgup, pgdn)
-    12'h270 : ascii <= 8'h69;  // i (inserte)
-    12'h271 : ascii <= 8'h7f;  //   (delete)
-    12'h26c : ascii <= 8'h68;  // h (home)
-    12'h269 : ascii <= 8'h65;  // e (end)
-    12'h27d : ascii <= 8'h70;  // p (p Up)
-    12'h27a : ascii <= 8'h6e;  // n (p Dn)
-
+    12'h270 : begin esc_active <=0; ascii <= 8'h69; end // i (inserte)
+    12'h271 : begin esc_active <=0; ascii <= 8'h7f; end //   (delete)
+    12'h26c : begin esc_active <=0; ascii <= 8'h68; end // h (home)
+    12'h269 : begin esc_active <=0; ascii <= 8'h65; end // e (end)
+    12'h27d : begin esc_active <=0; ascii <= 8'h70; end // p (p Up)
+    12'h27a : begin esc_active <=0; ascii <= 8'h6e; end // n (p Dn)
   endcase
   
 end
