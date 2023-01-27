@@ -1,5 +1,9 @@
 # PS/2 interface with test project ps2_test
 
+## Github repository
+
+[ps2_test](https://github.com/DavidJRichards/ps2/blob/master/ps2_test)
+
 ## Features
 
   * EBAZ4205 target
